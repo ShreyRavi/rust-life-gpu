@@ -155,6 +155,254 @@ mod tests {
         GridConfig::new(64, 64, Rule::Conway)
     }
 
+    // --- Rule::masks ---
+
+    #[test]
+    fn conway_masks() {
+        let (b, s) = Rule::Conway.masks();
+        assert_eq!(b, 1 << 3);
+        assert_eq!(s, (1 << 2) | (1 << 3));
+    }
+
+    #[test]
+    fn highlife_masks() {
+        let (b, s) = Rule::HighLife.masks();
+        assert_eq!(b, (1 << 3) | (1 << 6));
+        assert_eq!(s, (1 << 2) | (1 << 3));
+    }
+
+    #[test]
+    fn day_and_night_masks() {
+        let (b, s) = Rule::DayAndNight.masks();
+        assert_eq!(b, (1 << 3) | (1 << 6) | (1 << 7) | (1 << 8));
+        assert_eq!(s, (1 << 3) | (1 << 4) | (1 << 6) | (1 << 7) | (1 << 8));
+    }
+
+    #[test]
+    fn custom_masks_passthrough() {
+        let r = Rule::Custom { birth_mask: 0b101, survival_mask: 0b011 };
+        assert_eq!(r.masks(), (0b101, 0b011));
+    }
+
+    // --- Rule::name ---
+
+    #[test]
+    fn rule_names() {
+        assert_eq!(Rule::Conway.name(), "Conway");
+        assert_eq!(Rule::HighLife.name(), "HighLife");
+        assert_eq!(Rule::DayAndNight.name(), "Day & Night");
+        assert_eq!(Rule::Custom { birth_mask: 0, survival_mask: 0 }.name(), "Custom");
+    }
+
+    // --- Rule::all_presets ---
+
+    #[test]
+    fn all_presets_has_three_entries() {
+        let p = Rule::all_presets();
+        assert_eq!(p.len(), 3);
+        assert!(p.contains(&Rule::Conway));
+        assert!(p.contains(&Rule::HighLife));
+        assert!(p.contains(&Rule::DayAndNight));
+    }
+
+    // --- GridConfig::new ---
+
+    #[test]
+    fn grid_config_fields() {
+        let cfg = GridConfig::new(128, 64, Rule::Conway);
+        assert_eq!(cfg.width, 128);
+        assert_eq!(cfg.height, 64);
+        assert_eq!(cfg.depth, 1);
+        let (b, s) = Rule::Conway.masks();
+        assert_eq!(cfg.birth_mask, b);
+        assert_eq!(cfg.survival_mask, s);
+        assert_eq!(cfg._pad0, 0);
+        assert_eq!(cfg._pad1, 0);
+        assert_eq!(cfg._pad2, 0);
+    }
+
+    // --- SimState::new ---
+
+    #[test]
+    fn simstate_defaults() {
+        let s = SimState::new(100, 200);
+        assert_eq!(s.config.width, 100);
+        assert_eq!(s.config.height, 200);
+        assert_eq!(s.rule, Rule::Conway);
+        assert_eq!(s.step_count, 0);
+        assert!(!s.is_paused);
+        assert_eq!(s.steps_per_frame, 1);
+        assert!((s.density - 0.5).abs() < f32::EPSILON * 4.0);
+    }
+
+    // --- SimState::set_rule ---
+
+    #[test]
+    fn set_rule_updates_rule_and_masks() {
+        let mut s = SimState::new(64, 64);
+        s.set_rule(Rule::HighLife);
+        assert_eq!(s.rule, Rule::HighLife);
+        let (b, sv) = Rule::HighLife.masks();
+        assert_eq!(s.config.birth_mask, b);
+        assert_eq!(s.config.survival_mask, sv);
+    }
+
+    #[test]
+    fn set_rule_day_and_night() {
+        let mut s = SimState::new(64, 64);
+        s.set_rule(Rule::DayAndNight);
+        assert_eq!(s.rule, Rule::DayAndNight);
+        let (b, sv) = Rule::DayAndNight.masks();
+        assert_eq!(s.config.birth_mask, b);
+        assert_eq!(s.config.survival_mask, sv);
+    }
+
+    // --- SimState::set_custom_bit ---
+
+    #[test]
+    fn set_custom_bit_birth_set() {
+        let mut s = SimState::new(64, 64);
+        s.set_custom_bit(true, 5, true);
+        assert_ne!(s.config.birth_mask & (1 << 5), 0);
+    }
+
+    #[test]
+    fn set_custom_bit_birth_clear() {
+        let mut s = SimState::new(64, 64);
+        // Conway birth has bit 3 set; clear it
+        s.set_custom_bit(true, 3, false);
+        assert_eq!(s.config.birth_mask & (1 << 3), 0);
+    }
+
+    #[test]
+    fn set_custom_bit_survival_set() {
+        let mut s = SimState::new(64, 64);
+        s.set_custom_bit(false, 5, true);
+        assert_ne!(s.config.survival_mask & (1 << 5), 0);
+    }
+
+    #[test]
+    fn set_custom_bit_survival_clear() {
+        let mut s = SimState::new(64, 64);
+        // Conway survival has bit 2 set; clear it
+        s.set_custom_bit(false, 2, false);
+        assert_eq!(s.config.survival_mask & (1 << 2), 0);
+    }
+
+    #[test]
+    fn set_custom_bit_snaps_to_preset() {
+        let mut s = SimState::new(64, 64);
+        // Conway + birth bit 6 = HighLife (same survival mask)
+        s.set_custom_bit(true, 6, true);
+        assert_eq!(s.rule, Rule::HighLife);
+    }
+
+    #[test]
+    fn set_custom_bit_becomes_custom_when_no_preset_matches() {
+        let mut s = SimState::new(64, 64);
+        s.set_custom_bit(true, 7, true);
+        assert!(matches!(s.rule, Rule::Custom { .. }));
+    }
+
+    #[test]
+    fn set_custom_bit_custom_stores_masks() {
+        let mut s = SimState::new(64, 64);
+        s.set_custom_bit(true, 7, true);
+        if let Rule::Custom { birth_mask, survival_mask } = s.rule {
+            assert_eq!(birth_mask, s.config.birth_mask);
+            assert_eq!(survival_mask, s.config.survival_mask);
+        } else {
+            panic!("expected Custom rule");
+        }
+    }
+
+    // --- SimState::random_state ---
+
+    #[test]
+    fn random_state_correct_length() {
+        let s = SimState::new(16, 32);
+        assert_eq!(s.random_state().len(), 16 * 32);
+    }
+
+    #[test]
+    fn random_state_values_are_binary() {
+        let s = SimState::new(64, 64);
+        assert!(s.random_state().iter().all(|&c| c == 0 || c == 1));
+    }
+
+    #[test]
+    fn random_state_density_zero_all_dead() {
+        let mut s = SimState::new(64, 64);
+        s.density = 0.0;
+        assert!(s.random_state().iter().all(|&c| c == 0));
+    }
+
+    #[test]
+    fn random_state_density_one_all_alive() {
+        let mut s = SimState::new(64, 64);
+        s.density = 1.0;
+        assert!(s.random_state().iter().all(|&c| c == 1));
+    }
+
+    #[test]
+    fn random_state_density_half_roughly_half_alive() {
+        let mut s = SimState::new(256, 256);
+        s.density = 0.5;
+        let cells = s.random_state();
+        let alive = cells.iter().filter(|&&c| c == 1).count();
+        let total = cells.len();
+        // Within 10% of 50%
+        assert!(alive > total * 40 / 100 && alive < total * 60 / 100);
+    }
+
+    // --- apply_rule exhaustive ---
+
+    #[test]
+    fn conway_apply_rule_all_neighbors() {
+        let cfg = conway();
+        for n in 0u32..=8 {
+            let expected_dead = if n == 3 { 1 } else { 0 };
+            let expected_alive = if n == 2 || n == 3 { 1 } else { 0 };
+            assert_eq!(apply_rule(0, n, &cfg), expected_dead, "dead cell n={}", n);
+            assert_eq!(apply_rule(1, n, &cfg), expected_alive, "alive cell n={}", n);
+        }
+    }
+
+    #[test]
+    fn highlife_apply_rule_all_neighbors() {
+        let cfg = GridConfig::new(64, 64, Rule::HighLife);
+        for n in 0u32..=8 {
+            let expected_dead = if n == 3 || n == 6 { 1 } else { 0 };
+            let expected_alive = if n == 2 || n == 3 { 1 } else { 0 };
+            assert_eq!(apply_rule(0, n, &cfg), expected_dead, "dead cell n={}", n);
+            assert_eq!(apply_rule(1, n, &cfg), expected_alive, "alive cell n={}", n);
+        }
+    }
+
+    #[test]
+    fn day_and_night_apply_rule_all_neighbors() {
+        let cfg = GridConfig::new(64, 64, Rule::DayAndNight);
+        let born_at    = [3u32, 6, 7, 8];
+        let survive_at = [3u32, 4, 6, 7, 8];
+        for n in 0u32..=8 {
+            let expected_dead  = if born_at.contains(&n) { 1 } else { 0 };
+            let expected_alive = if survive_at.contains(&n) { 1 } else { 0 };
+            assert_eq!(apply_rule(0, n, &cfg), expected_dead, "dead cell n={}", n);
+            assert_eq!(apply_rule(1, n, &cfg), expected_alive, "alive cell n={}", n);
+        }
+    }
+
+    #[test]
+    fn custom_rule_apply() {
+        let cfg = GridConfig::new(4, 4, Rule::Custom { birth_mask: 1 << 1, survival_mask: 1 << 5 });
+        assert_eq!(apply_rule(0, 1, &cfg), 1);
+        assert_eq!(apply_rule(0, 2, &cfg), 0);
+        assert_eq!(apply_rule(1, 5, &cfg), 1);
+        assert_eq!(apply_rule(1, 4, &cfg), 0);
+    }
+
+    // --- legacy spot-checks (kept for regression) ---
+
     #[test]
     fn conway_survives_2() {
         assert_eq!(apply_rule(1, 2, &conway()), 1);
@@ -197,6 +445,8 @@ mod tests {
         assert_eq!(apply_rule(1, 0, &cfg), 0);
     }
 
+    // --- ping_pong_index ---
+
     #[test]
     fn ping_pong_step0() {
         assert_eq!(ping_pong_index(0), 0);
@@ -211,5 +461,11 @@ mod tests {
     fn ping_pong_wraps() {
         assert_eq!(ping_pong_index(2), 0);
         assert_eq!(ping_pong_index(3), 1);
+    }
+
+    #[test]
+    fn ping_pong_large_values() {
+        assert_eq!(ping_pong_index(u64::MAX), 1);     // odd
+        assert_eq!(ping_pong_index(u64::MAX - 1), 0); // even
     }
 }
