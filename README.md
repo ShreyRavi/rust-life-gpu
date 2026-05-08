@@ -2,6 +2,9 @@
 
 GPU-accelerated cellular automaton simulator written in Rust. Runs natively via wgpu and in the browser via WebAssembly + WebGPU.
 
+<center><img width="1493" height="823" alt="image" src="https://github.com/user-attachments/assets/6c9d2bda-139c-42c2-a67d-b6080a39a224" />
+</center>
+
 ## Live demo
 
 https://shreyravi.github.io/rust-life-gpu/
