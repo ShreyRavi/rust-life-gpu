@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GPU Life</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0A0A0F;
+    }
+    #status {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: #ccc;
+      font-family: monospace;
+      font-size: 14px;
+      text-align: center;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="status">Loading GPU simulation...</div>
+  <script type="module">
+    import init, { run_app } from './pkg/rust_life_gpu.js';
+
+    const status = document.getElementById('status');
+
+    if (!navigator.gpu) {
+      status.textContent = 'WebGPU required. Use Chrome 113+ or Arc Browser.';
+    } else {
+      try {
+        await init();
+        status.style.display = 'none';
+        run_app();
+      } catch (e) {
+        status.textContent =
+          'WebGPU failed to initialize. Your GPU or driver may not be supported.';
+        console.error(e);
+      }
+    }
+  </script>
+</body>
+</html>
