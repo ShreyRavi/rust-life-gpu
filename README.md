@@ -9,6 +9,8 @@ GPU-accelerated cellular automaton simulator written in Rust. Runs natively via 
 
 https://shreyravi.github.io/rust-life-gpu/
 
+**Note: If the live deploy is not functional, please refresh.**
+
 Requires Chrome 113+ or another browser with WebGPU support enabled. Most desktop Chrome/Edge builds from 2023 onwards work out of the box.
 
 ## What it does
