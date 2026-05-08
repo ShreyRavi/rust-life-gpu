@@ -66,7 +66,6 @@ impl GpuState {
                     required_features: wgpu::Features::empty(),
                     required_limits: if cfg!(target_arch = "wasm32") {
                         wgpu::Limits::downlevel_webgl2_defaults()
-                            .using_resolution(adapter.limits())
                     } else {
                         wgpu::Limits::default()
                     },
