@@ -64,7 +64,15 @@ impl GpuState {
                 &wgpu::DeviceDescriptor {
                     label: None,
                     required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default(),
+                    // Use conservative WebGL2-compatible limits as a base so
+                    // requestDevice always succeeds on any WebGPU adapter, then
+                    // raise only the texture dimension limit needed for large grids.
+                    // downlevel_webgl2_defaults caps max_texture_dimension_2d at 2048;
+                    // 4096×4096 grids need at least 4096 (WebGPU mandates ≥8192).
+                    required_limits: wgpu::Limits {
+                        max_texture_dimension_2d: 8192,
+                        ..wgpu::Limits::downlevel_webgl2_defaults()
+                    },
                     memory_hints: wgpu::MemoryHints::default(),
                 },
                 None,
