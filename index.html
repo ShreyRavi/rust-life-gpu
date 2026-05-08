@@ -27,6 +27,24 @@
 </head>
 <body>
   <div id="status">Loading GPU simulation...</div>
+  <script>
+    // wgpu 22 serializes maxInterStageShaderComponents into requiredLimits, but
+    // the WebGPU spec removed this field. Chrome rejects requestDevice if the key
+    // is present with any non-undefined value. Strip it before the call reaches
+    // the browser so the WASM module works without needing a wgpu upgrade.
+    if (typeof GPUAdapter !== 'undefined') {
+      const _origRequestDevice = GPUAdapter.prototype.requestDevice;
+      GPUAdapter.prototype.requestDevice = function(descriptor) {
+        if (descriptor && descriptor.requiredLimits &&
+            'maxInterStageShaderComponents' in descriptor.requiredLimits) {
+          const limits = Object.assign({}, descriptor.requiredLimits);
+          delete limits.maxInterStageShaderComponents;
+          descriptor = Object.assign({}, descriptor, { requiredLimits: limits });
+        }
+        return _origRequestDevice.call(this, descriptor);
+      };
+    }
+  </script>
   <script type="module">
     import init, { run_app } from './pkg/rust_life_gpu.js';
 
