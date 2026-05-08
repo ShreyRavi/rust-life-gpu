@@ -41,8 +41,16 @@ impl GpuState {
         sim: &SimState,
     ) -> anyhow::Result<Self> {
         let size = window.inner_size();
+        // On WASM, force WebGPU-only. Backends::all() includes GL (WebGL2),
+        // and when the GL adapter wins the race it silently ignores required_limits
+        // causing buffer/texture creation to fail without returning an error.
+        #[cfg(target_arch = "wasm32")]
+        let backends = wgpu::Backends::BROWSER_WEBGPU;
+        #[cfg(not(target_arch = "wasm32"))]
+        let backends = wgpu::Backends::all();
+
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
+            backends,
             ..Default::default()
         });
 

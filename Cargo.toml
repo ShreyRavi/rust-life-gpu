@@ -30,7 +30,7 @@ pollster = "0.3"
 egui-winit = { version = "0.29", default-features = false }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement"] }
+web-sys = { version = "0.3", features = ["Window", "Document", "Element", "HtmlElement", "Location", "Storage"] }
 getrandom = { version = "0.2", features = ["js"] }
 console_error_panic_hook = "0.1"
 console_log = "0.2"

@@ -164,8 +164,36 @@ impl ApplicationHandler for App {
                 if let Some(pending) = &*p.borrow() {
                     if let Some(result) = pending.borrow_mut().take() {
                         match result {
-                            Ok(gpu) => self.init_gpu(gpu),
-                            Err(e)  => log::error!("GPU init: {e}"),
+                            Ok(gpu) => {
+                                // Successful init — clear any retry counter
+                                if let Some(win) = web_sys::window() {
+                                    if let Ok(Some(s)) = win.session_storage() {
+                                        let _ = s.remove_item("gpu_init_attempts");
+                                    }
+                                }
+                                self.init_gpu(gpu);
+                            }
+                            Err(e) => {
+                                log::error!("GPU init failed: {e}");
+                                // Auto-reload up to 5 times; sessionStorage survives
+                                // reload but not tab close, preventing infinite loops.
+                                if let Some(win) = web_sys::window() {
+                                    if let Ok(Some(storage)) = win.session_storage() {
+                                        let attempts: u32 = storage
+                                            .get_item("gpu_init_attempts")
+                                            .ok().flatten()
+                                            .and_then(|s| s.parse().ok())
+                                            .unwrap_or(0);
+                                        if attempts < 5 {
+                                            let _ = storage.set_item(
+                                                "gpu_init_attempts",
+                                                &(attempts + 1).to_string(),
+                                            );
+                                            let _ = win.location().reload();
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
