@@ -14,6 +14,9 @@
     }
     canvas {
       display: block;
+      /* Match canvas CSS size to viewport so the surface always fills the screen. */
+      width: 100vw !important;
+      height: 100vh !important;
     }
     #status {
       position: fixed;
@@ -47,6 +50,23 @@
         return _origRequestDevice.call(this, descriptor);
       };
     }
+  </script>
+  <script>
+    // Keep the canvas buffer size in sync with the viewport on browser resize.
+    // Setting canvas.width/height triggers winit's ResizeObserver, which fires
+    // WindowEvent::Resized into the Rust event loop so the wgpu surface follows.
+    function syncCanvasSize() {
+      const canvas = document.querySelector('canvas');
+      if (!canvas) return;
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.floor(window.innerWidth * dpr);
+      const h = Math.floor(window.innerHeight * dpr);
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width  = w;
+        canvas.height = h;
+      }
+    }
+    window.addEventListener('resize', syncCanvasSize);
   </script>
   <script type="module">
     import init, { run_app } from './pkg/rust_life_gpu.js';

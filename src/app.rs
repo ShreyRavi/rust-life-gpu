@@ -12,7 +12,7 @@ use crate::{
     simulation::{Rule, SimState},
 };
 
-const DEFAULT_GRID: u32 = 512;
+const DEFAULT_GRID: u32 = 4096;
 const GRID_OPTIONS: &[(u32, u32, &str)] = &[
     (512,  512,  "512×512"),
     (1024, 1024, "1024×1024"),
