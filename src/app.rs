@@ -81,14 +81,23 @@ impl App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+        #[cfg(not(target_arch = "wasm32"))]
         let window_attrs = Window::default_attributes()
             .with_title("GPU Life")
             .with_inner_size(winit::dpi::LogicalSize::new(1280u32, 720u32));
 
+        // On WASM, size the canvas to the actual viewport so the egui panel
+        // (anchored to the right edge of the surface) stays on-screen.
         #[cfg(target_arch = "wasm32")]
         let window_attrs = {
             use winit::platform::web::WindowAttributesExtWebSys;
-            window_attrs.with_append(true)
+            let web_win = web_sys::window().expect("no window");
+            let vw = web_win.inner_width().ok().and_then(|v| v.as_f64()).unwrap_or(1280.0) as u32;
+            let vh = web_win.inner_height().ok().and_then(|v| v.as_f64()).unwrap_or(720.0) as u32;
+            Window::default_attributes()
+                .with_title("GPU Life")
+                .with_inner_size(winit::dpi::LogicalSize::new(vw, vh))
+                .with_append(true)
         };
 
         let window = Arc::new(
