@@ -72,15 +72,16 @@ impl GpuState {
                 &wgpu::DeviceDescriptor {
                     label: None,
                     required_features: wgpu::Features::empty(),
-                    // Use conservative WebGL2-compatible limits as a base so
-                    // requestDevice always succeeds on any WebGPU adapter, then
-                    // raise only the texture dimension limit needed for large grids.
-                    // downlevel_webgl2_defaults caps max_texture_dimension_2d at 2048;
-                    // 4096×4096 grids need at least 4096 (WebGPU mandates ≥8192).
-                    required_limits: wgpu::Limits {
-                        max_texture_dimension_2d: 8192,
-                        ..wgpu::Limits::downlevel_webgl2_defaults()
-                    },
+                    // Use Limits::default() (WebGPU spec minimums) rather than
+                    // downlevel_webgl2_defaults(). The downlevel defaults set compute
+                    // limits to 0 because WebGL2 has no compute shaders. Chrome
+                    // enforces those limits strictly and creates a device with zero
+                    // compute capability, silently breaking all compute passes.
+                    // Safari ignores the low requested limits and gives a full device.
+                    // The index.html polyfill strips any wgpu-internal field names
+                    // (maxInterStageShaderComponents, maxNonSamplerBindings, etc.)
+                    // that Chrome would reject as unknown keys.
+                    required_limits: wgpu::Limits::default(),
                     memory_hints: wgpu::MemoryHints::default(),
                 },
                 None,
