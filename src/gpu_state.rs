@@ -87,6 +87,33 @@ impl GpuState {
             )
             .await?;
 
+        // Verify the device actually honours the limits we requested.
+        // request_device succeeding only guarantees this contractually;
+        // some adapters (especially via the wgpu WebGL fallback path) may
+        // silently under-deliver. Fail fast here so auto-reload fires.
+        {
+            let got = device.limits();
+            let buf_bytes = (sim.config.width as u64) * (sim.config.height as u64) * 4;
+            let need_dim  = sim.config.width.max(sim.config.height);
+            if got.max_texture_dimension_2d < need_dim {
+                return Err(anyhow::anyhow!(
+                    "adapter max_texture_dimension_2d={} < {need_dim}",
+                    got.max_texture_dimension_2d
+                ));
+            }
+            if buf_bytes > got.max_storage_buffer_binding_size as u64 {
+                return Err(anyhow::anyhow!(
+                    "adapter max_storage_buffer_binding_size={}B < {buf_bytes}B needed",
+                    got.max_storage_buffer_binding_size
+                ));
+            }
+        }
+
+        // Push error scopes so silent resource-creation failures (wgpu error
+        // device model) are converted to real errors that trigger auto-reload.
+        device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        device.push_error_scope(wgpu::ErrorFilter::Validation);
+
         let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
             .formats
@@ -354,6 +381,15 @@ impl GpuState {
             multiview:    None,
             cache:        None,
         });
+
+        // Pop error scopes (LIFO: validation was pushed last → pop first).
+        // Any silent resource-creation failure gets surfaced here.
+        if let Some(err) = device.pop_error_scope().await {
+            return Err(anyhow::anyhow!("GPU validation error during init: {err}"));
+        }
+        if let Some(err) = device.pop_error_scope().await {
+            return Err(anyhow::anyhow!("GPU out of memory during init: {err}"));
+        }
 
         Ok(Self {
             surface,
