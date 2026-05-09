@@ -31,18 +31,37 @@
 <body>
   <div id="status">Loading GPU simulation...</div>
   <script>
-    // wgpu 22 serializes maxInterStageShaderComponents into requiredLimits, but
-    // the WebGPU spec removed this field. Chrome rejects requestDevice if the key
-    // is present with any non-undefined value. Strip it before the call reaches
-    // the browser so the WASM module works without needing a wgpu upgrade.
+    // wgpu 22 serializes its own internal limit names into requiredLimits, some of
+    // which are not in the current WebGPU spec. Chrome (unlike Firefox/Safari) hard-
+    // rejects requestDevice if requiredLimits contains ANY unrecognised key. We
+    // whitelist every valid WebGPU spec limit name and strip the rest before the
+    // call reaches the browser, so no wgpu upgrade is needed to handle future renames.
     if (typeof GPUAdapter !== 'undefined') {
+      const WEBGPU_LIMIT_NAMES = new Set([
+        'maxTextureDimension1D', 'maxTextureDimension2D', 'maxTextureDimension3D',
+        'maxTextureArrayLayers', 'maxBindGroups', 'maxBindingsPerBindGroup',
+        'maxDynamicUniformBuffersPerPipelineLayout',
+        'maxDynamicStorageBuffersPerPipelineLayout',
+        'maxSampledTexturesPerShaderStage', 'maxSamplersPerShaderStage',
+        'maxStorageBuffersPerShaderStage', 'maxStorageTexturesPerShaderStage',
+        'maxUniformBuffersPerShaderStage', 'maxUniformBufferBindingSize',
+        'maxStorageBufferBindingSize', 'maxVertexBuffers', 'maxBufferSize',
+        'maxVertexAttributes', 'maxVertexBufferArrayStride',
+        'minUniformBufferOffsetAlignment', 'minStorageBufferOffsetAlignment',
+        'maxInterStageShaderVariables', 'maxColorAttachments',
+        'maxColorAttachmentBytesPerSample', 'maxComputeWorkgroupStorageSize',
+        'maxComputeInvocationsPerWorkgroup', 'maxComputeWorkgroupSizeX',
+        'maxComputeWorkgroupSizeY', 'maxComputeWorkgroupSizeZ',
+        'maxComputeWorkgroupsPerDimension',
+      ]);
       const _origRequestDevice = GPUAdapter.prototype.requestDevice;
       GPUAdapter.prototype.requestDevice = function(descriptor) {
-        if (descriptor && descriptor.requiredLimits &&
-            'maxInterStageShaderComponents' in descriptor.requiredLimits) {
-          const limits = Object.assign({}, descriptor.requiredLimits);
-          delete limits.maxInterStageShaderComponents;
-          descriptor = Object.assign({}, descriptor, { requiredLimits: limits });
+        if (descriptor && descriptor.requiredLimits) {
+          const filtered = {};
+          for (const [k, v] of Object.entries(descriptor.requiredLimits)) {
+            if (WEBGPU_LIMIT_NAMES.has(k)) filtered[k] = v;
+          }
+          descriptor = Object.assign({}, descriptor, { requiredLimits: filtered });
         }
         return _origRequestDevice.call(this, descriptor);
       };
